@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Environment Dashboard</title>
+
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f2f2f2;
+            margin: 0;
+            padding: 0;
+        }
+
+        h1 {
+            text-align: center;
+            background: #2c3e50;
+            color: white;
+            padding: 15px;
+            margin: 0;
+        }
+
+        .dashboard {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 20px;
+            padding: 20px;
+        }
+
+        .card {
+            background: white;
+            padding: 15px;
+            width: 350px;
+            border-radius: 10px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+        }
+
+        .alert {
+            background: red;
+            color: white;
+            text-align: center;
+            padding: 10px;
+            display: none;
+            margin: 10px;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+
+<body>
+
+<h1>Environment Monitoring Dashboard</h1>
+
+<div id="alertBox" class="alert"></div>
+
+<div class="dashboard">
+    <div class="card">
+        <h3>Temperature (°C)</h3>
+        <canvas id="tempChart"></canvas>
+    </div>
+
+    <div class="card">
+        <h3>Humidity (%)</h3>
+        <canvas id="humChart"></canvas>
+    </div>
+
+    <div class="card">
+        <h3>Gas Level</h3>
+        <canvas id="gasChart"></canvas>
+    </div>
+</div>
+
+<script>
+let tempChart, humChart, gasChart;
+
+const TEMP_LIMIT = 40;
+const HUM_LIMIT  = 80;
+const GAS_LIMIT  = 500;
+
+// fetch data from Flask
+async function fetchData() {
+    let response = await fetch("/data");
+    return await response.json();
+}
+
+function showAlert(message) {
+    let box = document.getElementById("alertBox");
+    box.innerText = message;
+    box.style.display = "block";
+    setTimeout(() => box.style.display = "none", 3000);
+}
+
+function createChart(canvasId, label, color) {
+    return new Chart(document.getElementById(canvasId), {
+        type: "line",
+        data: {
+            labels: [],
+            datasets: [{
+                label: label,
+                data: [],
+                borderColor: color,
+                fill: false
+            }]
+        }
+    });
+}
+
+async function updateCharts() {
+    let data = await fetchData();
+    if (data.length === 0) return;
+
+    let lastData = data.slice(-10);
+
+    let labels = lastData.map(d => d[3].slice(11,16));
+    let temp = lastData.map(d => d[0]);
+    let hum  = lastData.map(d => d[1]);
+    let gas  = lastData.map(d => d[2]);
+
+    if (!tempChart) {
+        tempChart = createChart("tempChart", "Temperature", "red");
+        humChart  = createChart("humChart", "Humidity", "blue");
+        gasChart  = createChart("gasChart", "Gas", "green");
+    }
+
+    tempChart.data.labels = labels;
+    tempChart.data.datasets[0].data = temp;
+    tempChart.update();
+
+    humChart.data.labels = labels;
+    humChart.data.datasets[0].data = hum;
+    humChart.update();
+
+    gasChart.data.labels = labels;
+    gasChart.data.datasets[0].data = gas;
+    gasChart.update();
+
+    if (temp[temp.length-1] > TEMP_LIMIT)
+        showAlert("High Temperature!");
+
+    if (hum[hum.length-1] > HUM_LIMIT)
+        showAlert("High Humidity!");
+
+    if (gas[gas.length-1] > GAS_LIMIT)
+        showAlert("High Gas Level!");
+}
+
+updateCharts();
+setInterval(updateCharts, 15000);
+</script>
+
+</body>
+</html>
